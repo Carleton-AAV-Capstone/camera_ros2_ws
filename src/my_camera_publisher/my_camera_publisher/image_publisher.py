@@ -4,48 +4,36 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import cv2
 
-class ImagePublisher(Node):
+class ImageSubscriber(Node):
     def __init__(self):
-        super().__init__('image_publisher')
-        self.publisher = self.create_publisher(Image, '/camera/image_raw', 10)
-        self.timer = self.create_timer(0.1, self.publish_image)  # 10 FPS
+        super().__init__('image_subscriber')
+        self.subscription = self.create_subscription(
+            Image,
+            '/left/image_raw',
+            self.listener_callback,
+            10)
         self.bridge = CvBridge()
-        self.cap = cv2.VideoCapture(0)  # Open default camera
+        self.get_logger().info("📡 Subscribed to /left/image_raw")
 
-        if not self.cap.isOpened():
-            self.get_logger().error("Could not open camera!")
-
-        self.get_logger().info("Image Publisher Node Started!")
-
-    def publish_image(self):
-        ret, frame = self.cap.read()
-        if not ret:
-            self.get_logger().error("❌ Failed to capture image from camera!")
-            return
-
-            self.get_logger().info(f"✅ Captured frame: shape={frame.shape}")
-
+    def listener_callback(self, msg):
         try:
-            msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
-            self.publisher.publish(msg)
-            self.get_logger().info("📸 Published image to /camera/image_raw")
+            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
+            cv2.imshow("Left Camera View", cv_image)
+            cv2.waitKey(1)
+            self.get_logger().info("🖼️ Received image from /left/image_raw")
         except Exception as e:
-            self.get_logger().error(f"⚠️ Error publishing image: {e}")
-
-
+            self.get_logger().error(f"❌ Failed to convert image: {e}")
 
     def destroy_node(self):
-        self.cap.release()
         cv2.destroyAllWindows()
         super().destroy_node()
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ImagePublisher()
+    node = ImageSubscriber()
     rclpy.spin(node)
     node.destroy_node()
     rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
-
